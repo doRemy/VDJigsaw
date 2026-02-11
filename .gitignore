@@ -47,3 +47,12 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# playground folder
+playground/
+
+# macOS
+.DS_Store
+
+# Large data files (too big for git)
+inst/extdata/*.h5

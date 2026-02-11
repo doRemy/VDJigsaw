@@ -1,0 +1,5 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^playground$
+^\.DS_Store$
+^\.claude$

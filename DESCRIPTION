@@ -1,0 +1,30 @@
+Package: VDJigsaw
+Title: Puzzling Together T-Cell Clones from Single-Cell TCR-Seq Data
+Version: 0.1.0
+Authors@R: person("Rémy", "Pétremand", role = c("aut", "cre"),
+                   email = "remy.petremand@example.com")
+Description: A toolkit for processing single-cell TCR-sequencing data into
+    clonotype groups with varying levels of stringency. VDJigsaw addresses
+    the challenge of missing chain data by leveraging dataset-wide evidence
+    to puzzle together T-cell receptor alpha and beta chains into coherent
+    clonotype definitions, reducing fragmented clonotypes caused by
+    sequencing dropout.
+License: GPL-3 + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports:
+    dplyr,
+    tidyr,
+    igraph,
+    foreach,
+    doParallel,
+    parallel,
+    stats,
+    stringr,
+    tibble
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
