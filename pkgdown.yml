@@ -1,0 +1,9 @@
+pandoc: 3.1.11
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles:
+  VDJigsaw_Vignette_01: VDJigsaw_Vignette_01.html
+last_built: 2026-02-12T17:34Z
+urls:
+  reference: https://doRemy.github.io/VDJigsaw/reference
+  article: https://doRemy.github.io/VDJigsaw/articles
