@@ -122,7 +122,7 @@ plot_clone_composition(reference_tables$dual_chain_dual_allele)
 plot_clone_composition(reference_tables$single_chain_single_allele)
 ```
 
-For a full walkthrough with real data, see the [Getting Started vignette](vignettes/VDJigsaw_Vignette_01.Rmd).
+For a full walkthrough with real data, see the [Getting Started vignette](vignettes/VDJigsaw_Vignette_01.html).
 
 ## Output
 
