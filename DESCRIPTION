@@ -1,8 +1,7 @@
 Package: VDJigsaw
 Title: Puzzling Together T-Cell Clones from Single-Cell TCR-Seq Data
 Version: 0.1.0
-Authors@R: person("Rémy", "Pétremand", role = c("aut", "cre"),
-                   email = "remy.petremand@example.com")
+Authors@R: person("Rémy", "Pétremand", role = c("aut", "cre"), email = "remy.petremand@gmail.com")
 Description: A toolkit for processing single-cell TCR-sequencing data into
     clonotype groups with varying levels of stringency. VDJigsaw addresses
     the challenge of missing chain data by leveraging dataset-wide evidence
@@ -26,5 +25,9 @@ Imports:
 Suggests:
     testthat (>= 3.0.0),
     knitr,
-    rmarkdown
+    rmarkdown,
+    ggplot2,
+    ggalluvial,
+    patchwork
+VignetteBuilder: knitr
 Config/testthat/edition: 3

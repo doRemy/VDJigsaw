@@ -5,7 +5,7 @@
 \title{Generate synthetic VDJ contig data for testing}
 \usage{
 generate_test_VDJ(
-  n_cells = 50,
+  n_cells = 100,
   n_clones = 10,
   samples = c("SampleA", "SampleB"),
   dropout_rate = 0.2,
@@ -19,17 +19,13 @@ generate_test_VDJ(
 
 \item{n_clones}{Number of distinct clonotypes. Default is 10.}
 
-\item{samples}{Character vector of sample names. Default is
-\code{c("SampleA", "SampleB")}.}
+\item{samples}{Character vector of sample names. Default is \code{c("SampleA", "SampleB")}.}
 
-\item{dropout_rate}{Proportion of cells with missing chain data (0-1).
-Default is 0.2.}
+\item{dropout_rate}{Proportion of cells with missing chain data (0-1). Default is 0.2.}
 
-\item{heterozygous_rate}{Proportion of cells with heterozygous (dual allele)
-chains (0-1). Default is 0.3.}
+\item{heterozygous_rate}{Proportion of cells with heterozygous (dual allele) chains (0-1). Default is 0.3.}
 
-\item{invalid_rate}{Proportion of contigs with invalid VDJ (missing V or J
-gene) (0-1). Default is 0.05.}
+\item{invalid_rate}{Proportion of contigs with invalid VDJ (missing V or J gene) (0-1). Default is 0.05.}
 
 \item{seed}{Random seed for reproducibility. Default is 42.}
 }

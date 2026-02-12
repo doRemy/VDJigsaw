@@ -1,6 +1,6 @@
 # VDJigsaw — Puzzling Together T-Cell Clones from Single-Cell TCR-Seq Data
 
-VDJigsaw is a toolkit for processing single-cell TCR-sequencing data into clonotype groups with varying levels of stringency and to map them to various types of representation (bulk-TCR-seq, ...).
+VDJigsaw is a toolkit for processing single-cell TCR-sequencing data into clonotype groups with varying levels of stringency and to map them to various types of representation.
 
 ## Introduction
 
@@ -91,7 +91,7 @@ A clonotype can be defined by a single allele of a single chain. This maximizes 
 
 ## Installation
 
-You can install VDJigsaw directly from GitHub using `devtools` or `remotes`:
+You can install VDJigsaw directly from GitHub: 
 
 ```r
 # install.packages("devtools")
@@ -100,32 +100,52 @@ devtools::install_github("doRemy/VDJigsaw")
 
 ## Getting Started
 
-<!-- TODO: Add a minimal usage example, e.g.: -->
-<!-- ```r -->
-<!-- library(VDJigsaw) -->
-<!-- ``` -->
+```r
+library(VDJigsaw)
+
+# 1. Load VDJ filtered contigs
+VDJ.contigs <- read.csv("filtered_contig_annotations.csv")
+
+# 2. Assign clonotypes
+VDJigsaw_res <- assign_clonotype(
+  VDJ_data = VDJ.contigs,
+  sample_col = "orig.ident",
+  verbose = TRUE)
+
+# 3. Retrieve outputs
+TCR_data <- VDJigsaw_res$TCR_data
+reference_tables <- VDJigsaw_res$ref_tables
+
+# 4. Visualize
+plot_stringency_summary(TCR_data)
+plot_clone_composition(reference_tables$dual_chain_dual_allele)
+plot_clone_composition(reference_tables$single_chain_single_allele)
+```
+
+For a full walkthrough with real data, see the [Getting Started vignette](vignettes/VDJigsaw_Vignette_01.Rmd).
 
 ## Output
 
-<!-- TODO: Describe what the output looks like - Tables and alluvials-->
+`assign_clonotype()` returns a list with two elements:
+
+- **`TCR_data`** — A data frame with one row per cell barcode, containing the TCR alpha/beta chains and a clone ID column for each stringency level.
+- **`ref_tables`** — A named list of reference tables (one per stringency level), each mapping a `CloneID` to its TCR chain composition.
 
 ## Method
 
-<!-- TODO: Describe what the method -->
+For each stringency level, VDJigsaw builds a pairwise similarity matrix between cells based on matching chain criteria (see [Stringency Levels](#clonotype-stringency-levels) above). This matrix is used to construct a graph where edges connect compatible cells. Connected components in this graph define the clonotypes.
 
-## Limitation
+Critically, any group containing a conflict — more than two distinct alleles for the same chain position — is not considered a valid match and is split accordingly. This ensures that no clonotype is defined by more than two TCR-alpha and two TCR-beta chains.
 
-<!-- TODO: Add limitations -->
+## Limitations
+
+The main limitation of this approach is **doublets**. When two cells are captured in the same droplet, their TCR chains get mixed, potentially joining unrelated chains into a single clonotype. We recommend running VDJigsaw after quality control and doublet removal on your scRNA-seq data.
 
 ## Citation
 
-<!-- TODO: Add citation information, e.g.: -->
-<!-- If you use VDJigsaw in your research, please cite this github -->
-<!-- > Pétremand, R. (2025). VDJigsaw:  -->
+If you use VDJigsaw in your research, please cite this repository:
 
-## Press
-
-<!-- TODO: Add article in which this was used: -->
+> Pétremand, R. VDJigsaw: Puzzling Together T-Cell Clones from Single-Cell TCR-Seq Data. https://github.com/doRemy/VDJigsaw
 
 ## License
 
@@ -134,3 +154,7 @@ This project is licensed under the [GPL-3.0 License](LICENSE).
 ## Contributing
 
 VDJigsaw is not currently accepting external contributions. This may change in the future — stay tuned.
+
+## Transparency Note
+
+AI (Claude, Anthropic) was used to assist with documentation writing and unit testing. All scientific content, methodology, and core implementation are the work of the author.

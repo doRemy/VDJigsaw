@@ -1,0 +1,310 @@
+---
+title: "Getting Started with VDJigsaw"
+author: "Rémy Pétremand"
+date: '`r format(Sys.Date(), "%d %B, %Y")`'
+output:
+  html_document:
+    toc: true
+    toc_float:
+        collapsed: true
+        smooth_scroll: false
+    theme: cosmo
+  fig_caption: true
+vignette: >
+  %\VignetteIndexEntry{Getting Started with VDJigsaw}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{css, echo=FALSE}
+pre {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 300px;
+}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  tidy = FALSE,
+  cache = FALSE,
+  dpi = 85,
+  eval = TRUE,
+  message = TRUE,
+  warning = TRUE,
+  fig.width = 8,
+  fig.height = 6
+)
+```
+
+# Introduction
+
+This vignette walks you through a typical VDJigsaw workflow using real-world VDJ data from 10x Genomics. By the end, you will have assigned clonotypes at multiple stringency levels and visualized the results.
+
+**What does VDJigsaw do?** Single-cell TCR sequencing often suffers from dropout: a cell's second alpha or beta chain allele may simply not get captured. Most tools treat missing chains as "different", fragmenting clonotypes. VDJigsaw instead looks across the whole dataset to puzzle together which cells likely belong to the same clone, even when some chain data is missing. It does this at five levels of stringency, from strict (all four chains must match) to permissive (a single allele suffices).
+
+# Getting started
+
+```{r, message=FALSE}
+library(VDJigsaw)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+```
+
+# Load data
+
+To illustrate VDJigsaw, we use VDJ filtered contig data from two publicly available 10x Genomics datasets:
+
+1. **10k Human Diseased PBMCs (ALL) — Freshly Processed** ([dataset](https://www.10xgenomics.com/datasets/10k_5p_Human_diseased_PBMC_ALL_Fresh) | [VDJ-TCR contigs](https://cf.10xgenomics.com/samples/cell-vdj/8.0.1/10k_5p_Human_diseased_PBMC_ALL_Fresh/10k_5p_Human_diseased_PBMC_ALL_Fresh_vdj_t_filtered_contig_annotations.csv))
+
+2. **10k Human Diseased PBMCs (ALL) — Fixed and Stored** ([dataset](https://www.10xgenomics.com/datasets/10k_5p_Human_diseased_PBMC_ALL_Fix_stored) | [VDJ-TCR contigs](https://cf.10xgenomics.com/samples/cell-vdj/8.0.1/10k_5p_Human_diseased_PBMC_ALL_Fix_stored/10k_5p_Human_diseased_PBMC_ALL_Fix_stored_vdj_t_filtered_contig_annotations.csv))
+
+These CSV files are bundled with the package in `inst/extdata/`.
+
+```{r}
+VDJ.contigs.fresh <- read.csv(system.file(
+  "extdata",
+  "10k_5p_Human_diseased_PBMC_ALL_Fresh_vdj_t_filtered_contig_annotations.csv",
+  package = "VDJigsaw"))
+
+VDJ.contigs.fix <- read.csv(system.file(
+  "extdata",
+  "10k_5p_Human_diseased_PBMC_ALL_Fix_stored_vdj_t_filtered_contig_annotations.csv",
+  package = "VDJigsaw"))
+```
+
+For simplicity, we tag each dataset with a sample label and combine them:
+
+```{r}
+VDJ.contigs.fresh$orig.ident <- "Fresh"
+VDJ.contigs.fix$orig.ident   <- "Fix"
+VDJ.contigs <- rbind(VDJ.contigs.fresh, VDJ.contigs.fix)
+```
+
+Let's take a quick look at the raw data — each row is one contig (one chain from one cell):
+
+```{r}
+cat(nrow(VDJ.contigs), "contigs across", length(unique(VDJ.contigs$barcode)), "unique barcodes\n")
+```
+
+```{r}
+knitr::kable(head(VDJ.contigs[, c("barcode", "chain", "v_gene", "cdr3", "j_gene", "umis", "orig.ident")], 5))
+```
+
+# Run the pipeline
+
+The main function `assign_clonotype()` runs the full VDJigsaw pipeline in four steps:
+
+1. **Pivot** the long-format contigs into wide format (one row per cell, with TRA_1, TRA_2, TRB_1, TRB_2 columns)
+2. **Validate** TCR chains (fix ordering, remove duplicates, flag invalid sequences)
+3. **Identify clonotypes** at five stringency levels using graph-based clustering
+4. **Return** annotated data and reference tables
+
+You can set `sample_col` to tell VDJigsaw about your sample structure. The `clone_loose` parameter controls which stringency level becomes the default `CloneID`. Set `num_cores` to speed up processing when you have multiple samples (use `-1` for all available cores).
+
+> **Tip:** Ideally, run VDJigsaw after quality control of your scRNA-seq data to remove low-quality barcodes and doublets, which could skew clonotype assignments.
+
+```{r, message=TRUE, warning=FALSE}
+VDJigsaw_res <- assign_clonotype(
+  VDJ_data = VDJ.contigs,
+  sample_col = "orig.ident",
+  clone_loose = "single_chain_single_allele",
+  num_cores = 1,
+  verbose = TRUE)
+```
+
+The result is a list with two elements:
+
+- **`TCR_data`** — wide-format data frame (one row per cell) with TCR chains and clone IDs at every stringency level
+- **`ref_tables`** — named list of reference tables mapping each `CloneID` to its chain composition
+
+# Explore the outputs
+
+## TCR data
+
+The `TCR_data` table has one row per cell barcode, with clone IDs at every stringency level:
+
+```{r}
+TCR_data <- VDJigsaw_res$TCR_data
+cat(nrow(TCR_data), "cells,", ncol(TCR_data), "columns\n")
+```
+
+Here are the clone ID columns — each cell gets an assignment at every stringency level:
+
+```{r}
+clone_cols <- colnames(TCR_data)[grepl("^CloneID\\.", colnames(TCR_data))]
+knitr::kable(head(TCR_data[, c("Sample", "barcode", clone_cols)], 6))
+```
+
+## Reference tables
+
+The `ref_tables` list contains one reference table per stringency level. Each table maps a `CloneID` to its TCR chain composition.
+
+```{r}
+VDJigsaw_ref_tables <- VDJigsaw_res$ref_tables
+names(VDJigsaw_ref_tables)
+```
+
+Each reference table has columns for `CloneID`, `Sample`, and the TCR chains. Let's define a small helper to display them compactly (showing only the V gene part of each chain to save space):
+
+```{r}
+# Helper: show ref table with truncated chain names for readability
+show_ref <- function(ref_tbl, n = 5) {
+  display_cols <- intersect(c("CloneID", "Sample", "TRA_1", "TRA_2", "TRB_1", "TRB_2"), colnames(ref_tbl))
+  df <- head(ref_tbl[, display_cols], n)
+  # Shorten V_CDR3_J strings to just V gene for display
+  for (col in intersect(c("TRA_1", "TRA_2", "TRB_1", "TRB_2"), colnames(df))) {
+    df[[col]] <- ifelse(is.na(df[[col]]), NA, sub("_.*", "", df[[col]]))
+  }
+  knitr::kable(df, row.names = FALSE)
+}
+```
+
+### Stringency levels {.tabset}
+
+The stringency levels are named along two axes: **which chains are required** (both alpha and beta, or just one) and **how many alleles per chain** (both alleles, or just one).
+
+| Level | Name | Chains required | Alleles per chain |
+|-------|------|----------------|-------------------|
+| 1 | `dual_chain_dual_allele` | Both alpha and beta | Both alleles (1 and 2) |
+| 2 | `dual_chain_one_partial` | Both alpha and beta | One chain can have a single allele |
+| 3 | `dual_chain_both_partial` | Both alpha and beta | Both chains can have a single allele |
+| 4 | `single_chain_dual_allele` | alpha or beta alone | Both alleles (1 and 2) |
+| 5 | `single_chain_single_allele` | alpha or beta alone | A single allele suffices |
+
+#### dual_chain_dual_allele
+
+The strictest level. All four chain positions (`TRA_1`, `TRA_2`, `TRB_1`, `TRB_2`) must match exactly.
+
+```{r}
+cat(nrow(VDJigsaw_ref_tables$dual_chain_dual_allele), "clonotypes\n")
+show_ref(VDJigsaw_ref_tables$dual_chain_dual_allele)
+```
+
+#### dual_chain_one_partial
+
+Both chains required, but one chain may have a missing secondary allele (no conflict allowed).
+
+```{r}
+cat(nrow(VDJigsaw_ref_tables$dual_chain_one_partial), "clonotypes\n")
+show_ref(VDJigsaw_ref_tables$dual_chain_one_partial)
+```
+
+#### dual_chain_both_partial
+
+Both chains required, but both may have a missing secondary allele.
+
+```{r}
+cat(nrow(VDJigsaw_ref_tables$dual_chain_both_partial), "clonotypes\n")
+show_ref(VDJigsaw_ref_tables$dual_chain_both_partial)
+```
+
+#### single_chain_dual_allele
+
+Only one chain (alpha or beta) is required, but both alleles of that chain must match.
+
+```{r}
+cat(nrow(VDJigsaw_ref_tables$single_chain_dual_allele), "clonotypes\n")
+show_ref(VDJigsaw_ref_tables$single_chain_dual_allele)
+```
+
+#### single_chain_single_allele
+
+The most permissive level. A single allele of a single chain can define a clonotype. Maximizes cell recovery but should be used with caution.
+
+```{r}
+cat(nrow(VDJigsaw_ref_tables$single_chain_single_allele), "clonotypes\n")
+show_ref(VDJigsaw_ref_tables$single_chain_single_allele)
+```
+
+### {-}
+
+Let's see how the number of clonotypes changes across levels:
+
+```{r}
+sapply(VDJigsaw_ref_tables[1:5], nrow)
+```
+
+As expected, the number of unique clonotypes decreases as stringency is relaxed (cells get merged into larger groups).
+
+# Visualize results
+
+VDJigsaw includes three built-in visualization functions. All support `per_sample` and `combined` arguments for multi-sample datasets.
+
+## Stringency summary
+
+This two-panel chart shows (top) the number of unique clonotypes and (bottom) the number of cells assigned at each stringency level.
+
+```{r, fig.width=8, fig.height=7}
+plot_stringency_summary(
+  TCR_data = TCR_data,
+  per_sample = TRUE,
+  combined = TRUE)
+```
+
+## Clonotype composition
+
+A tile chart showing V gene usage for the top clonotypes at a given stringency level. Grey tiles indicate missing chains.
+
+### Strict definition
+
+```{r, fig.width=8, fig.height=12}
+plot_list <- plot_clone_composition(
+  ref_table = VDJigsaw_ref_tables$dual_chain_dual_allele,
+  top_n = 10,
+  per_sample = TRUE,
+  combined = FALSE)
+
+plot_list$Fix +
+  plot_list$Fresh +
+  plot_layout(ncol = 1)
+```
+
+### Loose definition
+
+```{r, fig.width=8, fig.height=12}
+plot_list <- plot_clone_composition(
+  ref_table = VDJigsaw_ref_tables$single_chain_single_allele,
+  top_n = 10,
+  per_sample = TRUE,
+  combined = FALSE)
+
+plot_list$Fix +
+  plot_list$Fresh +
+  plot_layout(ncol = 1)
+```
+
+## Clonotype flow (alluvial)
+
+An alluvial diagram showing how clonotypes merge as stringency is relaxed. Each vertical axis is a stringency level, and flows show cells moving between clone definitions.
+
+```{r, fig.width=8, fig.height=12}
+plot_list <- plot_clonotype_flow(
+  TCR_data = TCR_data,
+  top_n = 10,
+  per_sample = TRUE,
+  combined = FALSE)
+
+plot_list$Fix +
+  plot_list$Fresh +
+  plot_layout(ncol = 1)
+```
+
+# Next steps
+
+- **Integrate with Seurat:** Map `TCR_data` back to your Seurat object using the `barcode` column to annotate cells with clone IDs.
+- **Cross-reference:** Use `assign_clonotype_from_reference()` to map new data against an existing reference clonotype table.
+- **Paired TCR mapping:** Use `map_clonotypes_to_paired_TCR()` to match allele-level data to a paired alpha/beta reference.
+
+For more details, see the function documentation: `?assign_clonotype`, `?assign_clonotype_from_reference`, `?map_clonotypes_to_paired_TCR`.
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
