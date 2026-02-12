@@ -9,6 +9,8 @@ Description: A toolkit for processing single-cell TCR-sequencing data into
     clonotype definitions, reducing fragmented clonotypes caused by
     sequencing dropout.
 License: GPL-3 + file LICENSE
+URL: https://doRemy.github.io/VDJigsaw/, https://github.com/doRemy/VDJigsaw
+BugReports: https://github.com/doRemy/VDJigsaw/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
