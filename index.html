@@ -55,17 +55,68 @@
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>Single-cell TCR sequencing (scTCR-seq) is a powerful approach for exploring T-cell receptor diversity and identifying clonally related T cells in humans. A common challenge is that a single cell barcode may be associated with one or multiple TCR alpha (TRA) and/or beta (TRB) chains, since some T cells are expected to carry heterozygous TCR-alpha and/or TCR-beta chains. Moreover, due to single-cell sequencing dropout and low TCR-chain detection sensitivity, chain information is frequently missing for individual cells. This makes clonotype assignment non-trivial.</p>
-<p>For instance, consider a cell for which only one TRA chain allele and both alleles of the TRB chain were captured. Since no second TRA allele is present, two assumptions are possible:</p>
+<p>Single-cell T Cell Receptor sequencing (scTCR-seq) is a powerful approach for exploring TCR diversity and identifying clonally related T cells. TCRs are heterodimers composed of two protein chains: alpha and beta. In most cases, a T cell is expected to express only one alpha-beta pair. However, while it is unlikely that a cell expresses two distinct beta chains, it is relatively common (~30%) for a cell to express two alpha chains.</p>
+<p>Clonotype assignment — grouping cells into the same clone — is a challenging problem in scTCR-seq data. What makes it particularly non-trivial is that chain information is frequently missing for individual cells due to sequencing dropout and low TCR-chain detection sensitivity.</p>
+<p>As a concrete example: imagine two cells, Cell-1 and Cell-2, sharing the same TCR-beta chain. Cell-1 has one TCR-alpha chain captured (alpha-1), while Cell-2 has two (alpha-1 and alpha-2). Note that alpha-1 matches between the two cells.</p>
+<p>Since Cell-1 and Cell-2 share the same beta chain and at least one alpha chain allele, the key question is whether:</p>
+<ul>
+<li>Cell-1 actually has a second alpha allele identical to alpha-1 (homozygous), or</li>
+<li>Cell-1 is heterozygous with alpha-2 as its second allele, but alpha-2 was not captured due to dropout.</li>
+</ul>
+<p>Current tools conservatively default to the first assumption and require an exact match on all chains, or only consider the primary alleles of both chains.</p>
+<p>However, given the immensely large diversity of TCRs generated through VDJ recombination, it is reasonable to assume that Cell-1 and Cell-2 belong to the same clonotype — it is very unlikely that two independent T-cell clones share the same beta chain and one of the same alpha alleles by chance.</p>
+<p>To test this, one could examine the other TCR sequences in the sample for evidence refuting this hypothesis. If no conflicting observation exists, it is reasonable to assume that these cells belong to the same clone and that the missing chain in Cell-1 simply failed to be captured.</p>
+<p>VDJigsaw addresses this by “puzzling” the different chains together into clone IDs at varying levels of stringency, allowing researchers to recover as many cells as possible into coherent clonotype definitions while controlling how permissive the matching is.</p>
+<p>This approach reduces the number of fragmented clonotypes caused by missing data and offers a more data-driven method for clonotype assignment.</p>
+<p>See the <a href="#method">Method</a> section below for more details.</p>
+</div>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<p>You can install VDJigsaw directly from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># install.packages("devtools")</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"doRemy/VDJigsaw"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="getting-started">Getting Started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://doRemy.github.io/VDJigsaw/">VDJigsaw</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 1. Load VDJ filtered contigs</span></span>
+<span><span class="va">VDJ.contigs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="st">"filtered_contig_annotations.csv"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. Assign clonotypes</span></span>
+<span><span class="va">VDJigsaw_res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/assign_clonotype.html">assign_clonotype</a></span><span class="op">(</span></span>
+<span>  VDJ_data <span class="op">=</span> <span class="va">VDJ.contigs</span>,</span>
+<span>  sample_col <span class="op">=</span> <span class="st">"orig.ident"</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3. Retrieve outputs</span></span>
+<span><span class="va">TCR_data</span> <span class="op">&lt;-</span> <span class="va">VDJigsaw_res</span><span class="op">$</span><span class="va">TCR_data</span></span>
+<span><span class="va">reference_tables</span> <span class="op">&lt;-</span> <span class="va">VDJigsaw_res</span><span class="op">$</span><span class="va">ref_tables</span></span>
+<span></span>
+<span><span class="co"># 4. Visualize</span></span>
+<span><span class="fu"><a href="reference/plot_stringency_summary.html">plot_stringency_summary</a></span><span class="op">(</span><span class="va">TCR_data</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/plot_clone_composition.html">plot_clone_composition</a></span><span class="op">(</span><span class="va">reference_tables</span><span class="op">$</span><span class="va">dual_chain_dual_allele</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/plot_clone_composition.html">plot_clone_composition</a></span><span class="op">(</span><span class="va">reference_tables</span><span class="op">$</span><span class="va">single_chain_single_allele</span><span class="op">)</span></span></code></pre></div>
+<p>For a full walkthrough with real data, see the <a href="https://doRemy.github.io/VDJigsaw/articles/VDJigsaw_Vignette_01.html">Getting Started vignette</a>.</p>
+</div>
+<div class="section level2">
+<h2 id="output">Output<a class="anchor" aria-label="anchor" href="#output"></a>
+</h2>
+<p><code><a href="reference/assign_clonotype.html">assign_clonotype()</a></code> returns a list with two elements:</p>
 <ul>
 <li>
-<strong>Assumption 1 (homozygous):</strong> The TCR-alpha chain is homozygous, and the captured allele is the only one.</li>
+<strong><code>TCR_data</code></strong> — A data frame with one row per cell barcode, containing the TCR alpha/beta chains and a clone ID column for each stringency level.</li>
 <li>
-<strong>Assumption 2 (heterozygous):</strong> The TCR-alpha chain is heterozygous, and the second allele was simply not detected (dropout).</li>
+<strong><code>ref_tables</code></strong> — A named list of reference tables (one per stringency level), each mapping a <code>CloneID</code> to its TCR chain composition.</li>
 </ul>
-<p>There is no way to distinguish between these two assumptions from a single cell in isolation. Current tools conservatively default to the first assumption and require an exact match on all chains or only consider the first alleles of both chains.</p>
-<p>However, we believe that this question can be addressed by leveraging the rest of the dataset. If we observe other cells that share the same three detected chains and additionally have a second TRA allele captured, it is reasonable to assume that all these cells belong to the same clone, and that the first cell simply failed to capture that chain (i.e., assumption 2). Otherwise, in the absence of such evidence, we default to assuming the second allele is identical to the first (i.e., assumption 1).</p>
-<p>VDJigsaw addresses this by “puzzling” the different chains together into clone IDs at varying levels of stringency, allowing researchers to recover as many cells as possible into coherent clonotype definitions while controlling how permissive the matching is. We believe that this approach reduces the number of fragmented clonotypes originating from missing data and offers a more data-driven approach to clonotype assignment.</p>
+</div>
+<div class="section level2">
+<h2 id="method">Method<a class="anchor" aria-label="anchor" href="#method"></a>
+</h2>
 <div class="section level3">
 <h3 id="input-format">Input Format<a class="anchor" aria-label="anchor" href="#input-format"></a>
 </h3>
@@ -217,56 +268,19 @@
 </ul>
 </div>
 </div>
+<div class="section level3">
+<h3 id="graph-based-clonotype-assignment-algorithm">Graph-Based Clonotype Assignment Algorithm<a class="anchor" aria-label="anchor" href="#graph-based-clonotype-assignment-algorithm"></a>
+</h3>
+<p>Clonotype assignment is performed <strong>independently per sample</strong> and proceeds through the stringency levels <strong>from strictest to most permissive</strong>. At each level, VDJigsaw:</p>
+<ol style="list-style-type: decimal">
+<li><p><strong>Generates clone version strings</strong> — For each cell, the relevant chain values (as defined by the current stringency level) are concatenated into a composite identifier. For example, at the strictest level, this is <code>Sample_TRA1_TRA2_TRB1_TRB2</code>; at more permissive levels, some chain positions are omitted.</p></li>
+<li><p><strong>Builds a pairwise similarity matrix</strong> — Each cell’s full clone version string is compared against all other cells’ clone version strings for the current level. Two cells are considered compatible if any of their clone version strings match. Matches from stricter levels are carried forward, so compatibility is cumulative.</p></li>
+<li><p><strong>Constructs a graph</strong> — The similarity matrix is used as an adjacency matrix to build an undirected graph (via <a href="https://r.igraph.org/" class="external-link">igraph</a>), where nodes are cells and edges connect compatible cells.</p></li>
+<li><p><strong>Identifies connected components</strong> — Each connected component in the graph defines a candidate clonotype. Cells with no edges (no match at any level) remain unassigned.</p></li>
+<li><p><strong>Resolves conflicts</strong> — A connected component is checked for conflicts: if it contains more than two distinct alleles for any chain position (e.g., three different TRA_1 values), the component is invalid. In this case, VDJigsaw falls back to the clustering from the previous (stricter) stringency level for the affected cells, ensuring that no clonotype is defined by more than two alpha and two beta chain alleles.</p></li>
+</ol>
+<p>This hierarchical approach means that cells first assigned at a strict level retain that assignment, and each successive level only adds new assignments for cells that were previously unmatched — while always enforcing the two-allele-per-chain constraint.</p>
 </div>
-<div class="section level2">
-<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
-</h2>
-<p>You can install VDJigsaw directly from GitHub:</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># install.packages("devtools")</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"doRemy/VDJigsaw"</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="getting-started">Getting Started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
-</h2>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://doRemy.github.io/VDJigsaw/">VDJigsaw</a></span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 1. Load VDJ filtered contigs</span></span>
-<span><span class="va">VDJ.contigs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="st">"filtered_contig_annotations.csv"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 2. Assign clonotypes</span></span>
-<span><span class="va">VDJigsaw_res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/assign_clonotype.html">assign_clonotype</a></span><span class="op">(</span></span>
-<span>  VDJ_data <span class="op">=</span> <span class="va">VDJ.contigs</span>,</span>
-<span>  sample_col <span class="op">=</span> <span class="st">"orig.ident"</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># 3. Retrieve outputs</span></span>
-<span><span class="va">TCR_data</span> <span class="op">&lt;-</span> <span class="va">VDJigsaw_res</span><span class="op">$</span><span class="va">TCR_data</span></span>
-<span><span class="va">reference_tables</span> <span class="op">&lt;-</span> <span class="va">VDJigsaw_res</span><span class="op">$</span><span class="va">ref_tables</span></span>
-<span></span>
-<span><span class="co"># 4. Visualize</span></span>
-<span><span class="fu"><a href="reference/plot_stringency_summary.html">plot_stringency_summary</a></span><span class="op">(</span><span class="va">TCR_data</span><span class="op">)</span></span>
-<span><span class="fu"><a href="reference/plot_clone_composition.html">plot_clone_composition</a></span><span class="op">(</span><span class="va">reference_tables</span><span class="op">$</span><span class="va">dual_chain_dual_allele</span><span class="op">)</span></span>
-<span><span class="fu"><a href="reference/plot_clone_composition.html">plot_clone_composition</a></span><span class="op">(</span><span class="va">reference_tables</span><span class="op">$</span><span class="va">single_chain_single_allele</span><span class="op">)</span></span></code></pre></div>
-<p>For a full walkthrough with real data, see the <a href="https://doRemy.github.io/VDJigsaw/articles/VDJigsaw_Vignette_01.html">Getting Started vignette</a>.</p>
-</div>
-<div class="section level2">
-<h2 id="output">Output<a class="anchor" aria-label="anchor" href="#output"></a>
-</h2>
-<p><code><a href="reference/assign_clonotype.html">assign_clonotype()</a></code> returns a list with two elements:</p>
-<ul>
-<li>
-<strong><code>TCR_data</code></strong> — A data frame with one row per cell barcode, containing the TCR alpha/beta chains and a clone ID column for each stringency level.</li>
-<li>
-<strong><code>ref_tables</code></strong> — A named list of reference tables (one per stringency level), each mapping a <code>CloneID</code> to its TCR chain composition.</li>
-</ul>
-</div>
-<div class="section level2">
-<h2 id="method">Method<a class="anchor" aria-label="anchor" href="#method"></a>
-</h2>
-<p>For each stringency level, VDJigsaw builds a pairwise similarity matrix between cells based on matching chain criteria (see <a href="#clonotype-stringency-levels">Stringency Levels</a> above). This matrix is used to construct a graph where edges connect compatible cells. Connected components in this graph define the clonotypes.</p>
-<p>Critically, any group containing a conflict — more than two distinct alleles for the same chain position — is not considered a valid match and is split accordingly. This ensures that no clonotype is defined by more than two TCR-alpha and two TCR-beta chains.</p>
 </div>
 <div class="section level2">
 <h2 id="limitations">Limitations<a class="anchor" aria-label="anchor" href="#limitations"></a>
