@@ -122,6 +122,8 @@ VDJigsaw_res <- assign_clonotype(
 
     ## [VDJigsaw] ========================================
 
+    ## [VDJigsaw] Detected raw contig input — pivoting to wide format
+
     ## [VDJigsaw] Converting VDJ data to wide format...
 
     ## [VDJigsaw]   Using cdr3_nt for CDR3 chain identifier
