@@ -479,8 +479,13 @@ map_clone_id <- function(VDJigsaw_res, VDJ_contigs_wide, cols_to_map = c(
 #' them to wide format, validates TCR chains, identifies clonotypes at multiple
 #' stringency levels, and returns the annotated data with clone assignments.
 #'
-#' @param VDJ_data A data frame of VDJ contig annotations in 10x Genomics
-#'   format.
+#' @param VDJ_data A data frame of VDJ contig annotations. Accepts either:
+#'   (1) raw contigs in 10x Genomics long format (one row per contig), or
+#'   (2) wide format with columns TRA_1, TRA_2, TRB_1, TRB_2 (one row per
+#'   barcode). The format is auto-detected. When wide format is provided,
+#'   \code{pivot_VDJ} is skipped and filtering parameters (\code{is_cell},
+#'   \code{high_confidence}, \code{productive}, \code{full_length},
+#'   \code{cdr3_col}) are ignored.
 #' @param sample_col Name of the column in \code{VDJ_data} to use as sample
 #'   identifier. If \code{NULL}, all cells are assigned to "Sample".
 #' @param clone_definition_df Clone definition data frame specifying the
@@ -540,18 +545,48 @@ assign_clonotype <- function(
   if (verbose) message("[VDJigsaw] Starting VDJigsaw clonotype assignment")
   if (verbose) message("[VDJigsaw] ========================================")
 
-  # Pivot into wide format (rows = barcode)
-  VDJ_contigs_wide <- pivot_VDJ(
-    VDJ_data = VDJ_data,
-    sample_col = sample_col,
-    is_cell = is_cell,
-    high_confidence = high_confidence,
-    productive = productive,
-    full_length = full_length,
-    cdr3_col = cdr3_col,
-    verbose = verbose)
+  # Detect input format: wide (TRA_1/TRA_2/TRB_1/TRB_2 present) vs raw contigs
+  tcr_chain_cols <- c("TRA_1", "TRA_2", "TRB_1", "TRB_2")
+  is_wide_format <- all(tcr_chain_cols %in% colnames(VDJ_data))
 
-  # Validate and correct problematic barcodes
+  if (is_wide_format) {
+    # Input is already in wide format — skip pivot_VDJ
+    if (verbose) message("[VDJigsaw] Detected wide-format input (TRA_1/TRA_2/TRB_1/TRB_2 columns found)")
+
+    # Warn if contigs-only parameters were set
+    pivot_params_set <- c(is_cell, high_confidence, productive, full_length)
+    if (any(pivot_params_set)) {
+      warning("[VDJigsaw] Parameters 'is_cell', 'high_confidence', 'productive', 'full_length' ",
+              "are ignored when input is already in wide format")
+    }
+
+    VDJ_contigs_wide <- VDJ_data
+
+    # Set up the Sample column
+    if (is.null(sample_col)) {
+      VDJ_contigs_wide$Sample <- "Sample"
+    } else if (sample_col %in% colnames(VDJ_contigs_wide)) {
+      VDJ_contigs_wide$Sample <- VDJ_contigs_wide[[sample_col]]
+    } else {
+      stop("Sample column '", sample_col, "' not found in VDJ_data. ",
+           "Available columns: ", paste(colnames(VDJ_contigs_wide), collapse = ", "))
+    }
+
+  } else {
+    # Input is raw contigs — run full pivot pipeline
+    if (verbose) message("[VDJigsaw] Detected raw contig input — pivoting to wide format")
+    VDJ_contigs_wide <- pivot_VDJ(
+      VDJ_data = VDJ_data,
+      sample_col = sample_col,
+      is_cell = is_cell,
+      high_confidence = high_confidence,
+      productive = productive,
+      full_length = full_length,
+      cdr3_col = cdr3_col,
+      verbose = verbose)
+  }
+
+  # Validate and correct TCR chains (runs for both input formats)
   VDJ_contigs_wide <- validate_TCR(
     TCR_data = VDJ_contigs_wide,
     remove_invalid_VDJ = remove_invalid_VDJ,
@@ -578,8 +613,9 @@ assign_clonotype <- function(
   # Map to the the wide table for complete results
   VDJ_contigs_wide <- cbind(VDJ_contigs_wide, VDJigsaw_res_alligned)
 
-  # Re-order the columns
+  # Re-order the columns (intersect with actual columns in case barcode is missing)
   column.order <- unique(c("Sample", "barcode", colnames(VDJigsaw_res_alligned), colnames(VDJ_contigs_wide)))
+  column.order <- column.order[column.order %in% colnames(VDJ_contigs_wide)]
   VDJ_contigs_wide <- VDJ_contigs_wide[, column.order]
 
   # Prepare output (for simplicity I just modify `TCR_data` output of `VDJigsaw_res`)
