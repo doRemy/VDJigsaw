@@ -163,7 +163,7 @@ map_clonotypes_to_paired_TCR <- function(data_to_map, ref_table, col_to_map, map
 
   # Define some internal functions:
   .func_map_val <- function(x){
-    x = unique(x[x != "ND"])
+    x = sort(unique(x[x != "ND"]))
     return(paste(x, collapse = "|"))
   }
   .func_map_val_to_label_factor <- function(x, map_to_label, col_label){
